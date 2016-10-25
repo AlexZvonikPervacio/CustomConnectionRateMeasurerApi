@@ -20,23 +20,34 @@ public class MainActivity extends AppCompatActivity implements TaskCallbacks {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-//        mTestRouter = new TestRouter();
+        mTestRouter = new TestRouter.Builder(this)
+                .setNetworkType(Constants.WIFI)
+                .setDuration(5_000)
+                .setDownload(this)
+//                .setUpload(this)
+                .create();
+        mTestRouter.startRouting();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mTestRouter.addTaskAndStart(Constants.DOWNLOAD, this);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mTestRouter.finishRouting();
     }
 
     public void start(View view) {
-        new TestRouter.Builder(this)
-                .setNetworkType(Constants.WIFI)
-                .setDownload(this)
-                .setUpload(this)
-                .create()
-                .start(7000);
+        mTestRouter.start();
     }
 
     public void stop(View view) {
 
     }
-
-
 
     @Override
     public void onStartRouting() {

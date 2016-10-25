@@ -9,8 +9,15 @@ public class Constants {
 
     public static final int DEFAULT_ERROR_DELAY = 1000;
 
-    public static final String DOWNLOAD_URL = "https://2.testdebit.info/fichiers/50Mo.dat";
-    public static final String UPLOAD_URL = "http://2.testdebit.info";
+    public static final String HOST = "http://2.testdebit.info";
+    public static final String DOWNLOAD_FILE_NAME = "100Mo.dat";
+    public static final String DOWNLOAD_URL = HOST + "/fichiers/" + DOWNLOAD_FILE_NAME;
+    public static final String UPLOAD_URL = HOST + "/";
+    public static final int UPLOAD_FILE_SIZE = 100_000_000; //upload 100Mo file size.
+    public static final String UPLOAD_FILE_PREF = "100_UL_Mo";
+    public static final String UPLOAD_FILE_SUF = "dat";
+    public static final String UPLOAD_FILE_NAME = UPLOAD_FILE_PREF + "." + UPLOAD_FILE_SUF;
+
 
     public static final String CHARSET = "UTF-8";
 

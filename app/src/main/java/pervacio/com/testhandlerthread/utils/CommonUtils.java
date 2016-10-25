@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import pervacio.com.testhandlerthread.IConnectionTypeChecker;
+
 import static pervacio.com.testhandlerthread.tasks.AbstractCancelableTask.TAG;
 import static pervacio.com.testhandlerthread.utils.Constants.MOBILE;
 import static pervacio.com.testhandlerthread.utils.Constants.NONE;
@@ -17,7 +19,17 @@ import static pervacio.com.testhandlerthread.utils.Constants.WIFI;
 
 public class CommonUtils {
 
-    public static String getConnectionErrorMessage(@Constants.NetworkType int networkTime, Context context){
+    public static IConnectionTypeChecker getConnectionChecker(@Constants.NetworkType final int networkTime, final Context context) {
+        return new IConnectionTypeChecker() {
+            @Override
+            public String check() {
+                return getConnectionErrorMessage(networkTime, context);
+            }
+        };
+    }
+
+    @WorkerThread
+    public static String getConnectionErrorMessage(@Constants.NetworkType int networkTime, Context context) {
         String messageResId = null;
         if (!CommonUtils.hasInternetAccess(context)) {
             messageResId = "No internet connection. Please, turn it on";

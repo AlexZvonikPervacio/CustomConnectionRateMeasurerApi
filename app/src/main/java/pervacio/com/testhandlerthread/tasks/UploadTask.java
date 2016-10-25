@@ -1,5 +1,7 @@
 package pervacio.com.testhandlerthread.tasks;
 
+import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -14,13 +16,14 @@ import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.List;
 
+import pervacio.com.testhandlerthread.IConnectionTypeChecker;
 import pervacio.com.testhandlerthread.callbacks.TaskCallbacks;
 import pervacio.com.testhandlerthread.callbacks.UploadCallback;
+import pervacio.com.testhandlerthread.utils.Constants;
+import pervacio.com.testhandlerthread.utils.FileUtils;
 import pervacio.com.testhandlerthread.utils.RandomGen;
 
-import static pervacio.com.testhandlerthread.utils.RandomGen.FILE_SIZE;
-
-public class UploadTask extends AbstractCancelableTask<Float> {
+public class UploadTask extends AbstractCancelableTask {
 
     public static final String TAG = UploadTask.class.getSimpleName();
 
@@ -34,6 +37,7 @@ public class UploadTask extends AbstractCancelableTask<Float> {
 
     private UploadCallback mUploadTaskCallback;
     private float mTotal;
+
     /**
      * This constructor initializes a new HTTP POST request with content type
      * is set to multipart/form-data. Also set maximum request duration
@@ -43,46 +47,73 @@ public class UploadTask extends AbstractCancelableTask<Float> {
      * @param duration
      * @throws IOException
      */
-    public UploadTask(String requestURL, String charset, long duration, TaskCallbacks taskCallback) {
-        super(duration, taskCallback);
+    public UploadTask(String requestURL, String charset, long duration, IConnectionTypeChecker checker, TaskCallbacks taskCallback) {
+        super(duration, checker, taskCallback);
         this.requestURL = requestURL;
         this.charset = charset;
         mUploadTaskCallback = taskCallback;
-        if (!RandomGen.isFileExist()) {
-            try {
-                RandomGen.generateRandomFile(FILE_SIZE);
-            } catch (IOException e) {
-                if (mUploadTaskCallback != null) {
-                    mUploadTaskCallback.onUploadError(e.getMessage());
-                }
-            }
-        }
         // creates a unique boundary based on time stamp
         boundary = "===" + System.currentTimeMillis() + "===";
     }
 
     @Override
+    protected void initBeforeStart() {
+        if (!FileUtils.isUploadFileExist() || !FileUtils.isUploadFileHasValidSize()) {
+            try {
+                RandomGen.generateRandomFile(Constants.UPLOAD_FILE_SIZE);
+            } catch (IOException e) {
+                //TODO delay with that case
+                Log.w("mUploadTaskCallback", "initBeforeStart:  " + e.getMessage());
+                if (mUploadTaskCallback != null) {
+                    mUploadTaskCallback.onUploadError(e.getMessage());
+                }
+            }
+        }
+    }
+
+    @Override
     protected void onStart() {
-        if (mUploadTaskCallback != null){
+        if (mUploadTaskCallback != null) {
             mUploadTaskCallback.onUploadStart();
         }
     }
 
     @Override
-    protected Float performAction() {
+    void onProgress(float progress) {
+        if (mUploadTaskCallback != null) {
+            mUploadTaskCallback.onUploadProgress(progress);
+        }
+    }
+
+    @Override
+    void onFinish(float result) {
+        if (mUploadTaskCallback != null) {
+            mUploadTaskCallback.onUploadFinish(result);
+        }
+    }
+
+    @Override
+    void onError(String message) {
+        if (mUploadTaskCallback != null) {
+            mUploadTaskCallback.onUploadError(message);
+        }
+    }
+
+    @Override
+    protected float performAction() throws TaskException {
         intConnection(requestURL, charset);
         addHeaderField("User-Agent", "CodeJava");
         addHeaderField("Test-Header", "Header-Value");
         List<String> response = new ArrayList<>(0);
         try {
-            addFilePart("fileUpload", RandomGen.getFile());
+            addFilePart("fileUpload", FileUtils.getUploadFile());
             response = finish();
+            Log.d("UploadTask", "response : " + response);
         } catch (IOException e) {
-            if (mUploadTaskCallback != null) {
-                mUploadTaskCallback.onUploadError(e.getMessage());
-            }
+
+            onError(e.getMessage());
         }
-//        return TextUtils.join("", response);
+//        return TextUtils.join("\n", response);
         return mTotal;
     }
 
@@ -100,12 +131,9 @@ public class UploadTask extends AbstractCancelableTask<Float> {
             httpConn.setRequestProperty("User-Agent", "CodeJava Agent");
             httpConn.setRequestProperty("Test", "Bonjour");
             outputStream = httpConn.getOutputStream();
-            writer = new PrintWriter(new OutputStreamWriter(outputStream, charset),
-                    true);
+            writer = new PrintWriter(new OutputStreamWriter(outputStream, charset), true);
         } catch (IOException e) {
-            if (mUploadTaskCallback != null) {
-                mUploadTaskCallback.onUploadError(e.getMessage());
-            }
+            onError(e.getMessage());
         }
     }
 
@@ -133,8 +161,7 @@ public class UploadTask extends AbstractCancelableTask<Float> {
      * @param uploadFile a File to be uploaded
      * @throws IOException
      */
-    public void addFilePart(String fieldName, File uploadFile)
-            throws IOException {
+    public Float addFilePart(String fieldName, File uploadFile) throws IOException, TaskException {
         String fileName = uploadFile.getName();
         writer.append("--")
                 .append(boundary)
@@ -151,27 +178,12 @@ public class UploadTask extends AbstractCancelableTask<Float> {
                 .append(LINE_FEED)
                 .flush();
 
-        FileInputStream inputStream = new FileInputStream(uploadFile);
-        byte[] buffer = new byte[4096];
-        int bytesRead;
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            if (!isCancelled()) {
-                outputStream.write(buffer, 0, bytesRead);
-            }
-            mTotal += bytesRead;
-            if (mUploadTaskCallback != null) {
-                mUploadTaskCallback.onUploadProgress(mTotal);
-            }
-        }
-        outputStream.flush();
-        inputStream.close();
-
-        if (mUploadTaskCallback != null) {
-            mUploadTaskCallback.onUploadFinish(mTotal);
-        }
+        final float readBytes = readBytes(new FileInputStream(uploadFile), outputStream);
 
         writer.append(LINE_FEED);
         writer.flush();
+
+        return readBytes;
     }
 
     /**
@@ -181,7 +193,7 @@ public class UploadTask extends AbstractCancelableTask<Float> {
      * @param value - value of the header field
      */
     public void addHeaderField(String name, String value) {
-        writer.append(name + ": " + value).append(LINE_FEED);
+        writer.append(name).append(": ").append(value).append(LINE_FEED);
         writer.flush();
     }
 
@@ -196,7 +208,7 @@ public class UploadTask extends AbstractCancelableTask<Float> {
         List<String> response = new ArrayList<>();
 
         writer.append(LINE_FEED).flush();
-        writer.append("--" + boundary + "--").append(LINE_FEED);
+        writer.append("--").append(boundary).append("--").append(LINE_FEED);
         writer.close();
 
         // checks server's status code first

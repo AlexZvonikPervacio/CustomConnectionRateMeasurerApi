@@ -31,19 +31,28 @@ public class TestRouter {
 
     @Constants.NetworkType
     private int mNetworkType;
+    private int mDuration;
     private SparseArray<TaskCallbacks> mCallbackMap;
 
-//    private TaskCallbacks taskCallbacks;
-
-    private TestRouter(@Constants.NetworkType int networkType, SparseArray<TaskCallbacks> callbackMap, Context context) {
+    private TestRouter(@Constants.NetworkType int networkType, int duration, SparseArray<TaskCallbacks> callbackMap, Context context) {
         mNetworkType = networkType;
+        mDuration = duration;
         mCallbackMap = callbackMap;
         mContext = context;
         mExecutor = Executors.newSingleThreadExecutor();
     }
 
+    public void start() {
+        executeAndClear(mDuration);
+    }
+
     public void start(long maxDuration) {
         executeAndClear(maxDuration);
+    }
+
+    public void addTaskAndStart(@Constants.MeasureTaskType int type, TaskCallbacks callbacks) {
+        mCallbackMap.append(type, callbacks);
+        executeAndClear(mDuration);
     }
 
     public void addTaskAndStart(@Constants.MeasureTaskType int type, TaskCallbacks callbacks, long maxDuration) {
@@ -55,24 +64,27 @@ public class TestRouter {
         mCallbackMap.append(type, callbacks);
     }
 
-    private void executeAndClear(long maxDuration) {
+    private void executeAndClear(final long maxDuration) {
         if (mCallbackMap.size() == 0) {
             throw new RuntimeException("No actions to execute");
         }
-        String connectionErrorMessage = CommonUtils.getConnectionErrorMessage(mNetworkType, mContext);
+        //First task start and last task completes check
         final LifeCycleCallback first = mCallbackMap.get(mCallbackMap.keyAt(0));
         final LifeCycleCallback last = mCallbackMap.get(mCallbackMap.size() - 1);
         Future<Float> lastTaskFuture = null;
-
         first.onStartRouting();
+        //
+        final IConnectionTypeChecker connectionChecker = CommonUtils.getConnectionChecker(mNetworkType, mContext);
         for (int i = 0; i < mCallbackMap.size(); i++) {
             int key = mCallbackMap.keyAt(i);
             switch (key) {
                 case DOWNLOAD:
-                    lastTaskFuture = mExecutor.submit(new DownloadTask(DOWNLOAD_URL, maxDuration, mCallbackMap.get(key)).getCallable());
+                    lastTaskFuture = mExecutor.submit(new DownloadTask(DOWNLOAD_URL, maxDuration, connectionChecker,
+                            mCallbackMap.get(key)).getCallable());
                     break;
                 case UPLOAD:
-                    lastTaskFuture = mExecutor.submit(new UploadTask(UPLOAD_URL, CHARSET, maxDuration, mCallbackMap.get(key)).getCallable());
+                    lastTaskFuture = mExecutor.submit(new UploadTask(UPLOAD_URL, CHARSET, maxDuration, connectionChecker,
+                            mCallbackMap.get(key)).getCallable());
                     break;
             }
         }
@@ -80,8 +92,16 @@ public class TestRouter {
         mCallbackMap.clear();
     }
 
+    public void cancelAllTasks(){
+        //TODO
+    }
+
     private void waitForLastTaskCompleted(long maxDuration, LifeCycleCallback last, Future<Float> lastTaskFuture) {
-        new FutureWaiter(lastTaskFuture, maxDuration * mCallbackMap.size() , last);
+        new FutureWaiter(lastTaskFuture, maxDuration * mCallbackMap.size(), last);
+    }
+
+    public void startRouting() {
+        mExecutor = Executors.newSingleThreadExecutor();
     }
 
     public void finishRouting() {
@@ -91,11 +111,12 @@ public class TestRouter {
         }
     }
 
-   public static class Builder {
+    public static class Builder {
 
-        private SparseArray<TaskCallbacks> mCallbackMap;
         @Constants.NetworkType
         private int mNetworkType;
+        private int mDuration;
+        private SparseArray<TaskCallbacks> mCallbackMap;
         private Context mContext;
 
         public Builder(Context context) {
@@ -106,6 +127,11 @@ public class TestRouter {
 
         public Builder setNetworkType(@Constants.NetworkType int networkType) {
             mNetworkType = networkType;
+            return this;
+        }
+
+        public Builder setDuration(int duration) {
+            mDuration = duration;
             return this;
         }
 
@@ -120,7 +146,7 @@ public class TestRouter {
         }
 
         public TestRouter create() {
-            return new TestRouter(mNetworkType, mCallbackMap, mContext);
+            return new TestRouter(mNetworkType, mDuration, mCallbackMap, mContext);
         }
 
     }

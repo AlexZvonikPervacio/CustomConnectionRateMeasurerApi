@@ -29,8 +29,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Random;
 
-import pervacio.com.testhandlerthread.AppClass;
-
 /**
  * Generate Random byte array, file for randomly generated uploaded file.
  *
@@ -42,23 +40,6 @@ public class RandomGen {
      * Chunk to write at each iteration for upload file generation.
      */
     public static final int UPLOAD_FILE_WRITE_CHUNK = 64000;
-
-    /**
-     * Temporary file extension.
-     */
-    public static final String UPLOAD_TEMP_FILE_EXTENSION = ".tmp";
-
-    /**
-     * Temporary file name for upload file.
-     */
-    public static final String UPLOAD_TEMP_FILE_NAME = "speed-test-random";
-
-    /**
-     * upload 1Mo file size.
-     */
-    public static final int FILE_SIZE = 1000000;
-
-    private static File sFile;
 
     /**
      * Generate random byte array.
@@ -98,7 +79,8 @@ public class RandomGen {
 
         Random randomObj = new Random();
 
-        File file = File.createTempFile(UPLOAD_TEMP_FILE_NAME, UPLOAD_TEMP_FILE_EXTENSION, AppClass.getContext().getCacheDir());
+        File file = FileUtils.getUploadFile();
+        file.createNewFile();
 
         final RandomAccessFile randomFile = new RandomAccessFile(file.getAbsolutePath(), "rw");
         randomFile.setLength(length);
@@ -106,39 +88,20 @@ public class RandomGen {
         final int iter = length / UPLOAD_FILE_WRITE_CHUNK;
         final int remain = length % UPLOAD_FILE_WRITE_CHUNK;
 
+        //TODO check it with MAT
+        final byte[] random = new byte[UPLOAD_FILE_WRITE_CHUNK];
         for (int i = 0; i < iter; i++) {
-            final byte[] random = new byte[UPLOAD_FILE_WRITE_CHUNK];
+//            final byte[] random = new byte[UPLOAD_FILE_WRITE_CHUNK];
             randomObj.nextBytes(random);
             randomFile.write(random);
         }
         if (remain > 0) {
-            final byte[] random = new byte[remain];
-            randomObj.nextBytes(random);
-            randomFile.write(random);
+            final byte[] random1 = new byte[remain];
+            randomObj.nextBytes(random1);
+            randomFile.write(random1);
         }
 
         return randomFile;
-    }
-
-    public static synchronized File getFile() {
-        if (sFile == null) {
-            sFile = new File(AppClass.getContext().getCacheDir(), UPLOAD_TEMP_FILE_NAME + "." + UPLOAD_TEMP_FILE_EXTENSION);
-        }
-        return sFile;
-    }
-
-    /**
-     * Delete random file.
-     */
-    public static boolean deleteFile() {
-        return getFile().delete();
-    }
-
-    /**
-     * Is file exist.
-     */
-    public static boolean isFileExist() {
-        return getFile().exists();
     }
 
 }
