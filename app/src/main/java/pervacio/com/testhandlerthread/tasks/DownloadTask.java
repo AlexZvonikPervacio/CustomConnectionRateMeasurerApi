@@ -11,6 +11,7 @@ import pervacio.com.testhandlerthread.IConnectionTypeChecker;
 import pervacio.com.testhandlerthread.callbacks.DownloadCallback;
 import pervacio.com.testhandlerthread.callbacks.TaskCallbacks;
 import pervacio.com.testhandlerthread.utils.FileUtils;
+import pervacio.com.testhandlerthread.utils.MeasuringUnits;
 
 import static pervacio.com.testhandlerthread.utils.Constants.DOWNLOAD_FILE_NAME;
 
@@ -21,8 +22,9 @@ public class DownloadTask extends AbstractCancelableTask {
     private String mUrl;
     private DownloadCallback mDownloadCallback;
 
-    public DownloadTask(String url, long duration, IConnectionTypeChecker checker, TaskCallbacks taskCallback) {
-        super(duration, checker, taskCallback);
+    public DownloadTask(String url, long duration, MeasuringUnits measuringUnit,
+                        IConnectionTypeChecker checker, TaskCallbacks taskCallback) {
+        super(duration, measuringUnit, checker);
         mUrl = url;
         mDownloadCallback = taskCallback;
     }

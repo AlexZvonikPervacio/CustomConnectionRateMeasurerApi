@@ -1,19 +1,24 @@
 package pervacio.com.testhandlerthread;
 
 import android.content.Context;
+import android.util.Log;
 import android.util.SparseArray;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import pervacio.com.testhandlerthread.callbacks.LifeCycleCallback;
 import pervacio.com.testhandlerthread.callbacks.TaskCallbacks;
+import pervacio.com.testhandlerthread.tasks.AbstractCancelableTask;
 import pervacio.com.testhandlerthread.tasks.DownloadTask;
 import pervacio.com.testhandlerthread.tasks.UploadTask;
 import pervacio.com.testhandlerthread.utils.CommonUtils;
 import pervacio.com.testhandlerthread.utils.Constants;
 import pervacio.com.testhandlerthread.utils.FutureWaiter;
+import pervacio.com.testhandlerthread.utils.MeasuringUnits;
 
 import static pervacio.com.testhandlerthread.utils.Constants.CHARSET;
 import static pervacio.com.testhandlerthread.utils.Constants.DOWNLOAD;
@@ -23,23 +28,24 @@ import static pervacio.com.testhandlerthread.utils.Constants.UPLOAD_URL;
 
 public class TestRouter {
 
-//    private static int counter;
-//    private final AtomicBoolean mCancelled = new AtomicBoolean();
-
     private ExecutorService mExecutor;
     private Context mContext;
 
     @Constants.NetworkType
     private int mNetworkType;
     private int mDuration;
+    private MeasuringUnits mMeasuringUnit;
     private SparseArray<TaskCallbacks> mCallbackMap;
+    private List<AbstractCancelableTask> mPrevTasks;
 
-    private TestRouter(@Constants.NetworkType int networkType, int duration, SparseArray<TaskCallbacks> callbackMap, Context context) {
+    private TestRouter(@Constants.NetworkType int networkType, int duration, MeasuringUnits measuringUnit,
+                       SparseArray<TaskCallbacks> callbackMap, Context context) {
         mNetworkType = networkType;
         mDuration = duration;
+        mMeasuringUnit = measuringUnit;
         mCallbackMap = callbackMap;
         mContext = context;
-        mExecutor = Executors.newSingleThreadExecutor();
+        mPrevTasks = new ArrayList<>();
     }
 
     public void start() {
@@ -52,6 +58,7 @@ public class TestRouter {
 
     public void addTaskAndStart(@Constants.MeasureTaskType int type, TaskCallbacks callbacks) {
         mCallbackMap.append(type, callbacks);
+        Log.w("executeAndClear", "mCallbackMap.size = " + mCallbackMap.size());
         executeAndClear(mDuration);
     }
 
@@ -69,39 +76,54 @@ public class TestRouter {
             throw new RuntimeException("No actions to execute");
         }
         //First task start and last task completes check
-        final LifeCycleCallback first = mCallbackMap.get(mCallbackMap.keyAt(0));
-        final LifeCycleCallback last = mCallbackMap.get(mCallbackMap.size() - 1);
+        mPrevTasks.clear();
+        final LifeCycleCallback firstCallback = mCallbackMap.get(mCallbackMap.keyAt(0));
+        final int lastIndex = mCallbackMap.size() - 1;
+        final LifeCycleCallback lastCallback = mCallbackMap.get(mCallbackMap.keyAt(lastIndex));
+        Log.w("executeAndClear", "mCallbackMap.size = " + mCallbackMap.size());
+        Log.w("executeAndClear", "lastIndex = " + lastIndex + " lastCallback = null " + (lastCallback == null));
         Future<Float> lastTaskFuture = null;
-        first.onStartRouting();
+        firstCallback.onStartRouting();
         //
         final IConnectionTypeChecker connectionChecker = CommonUtils.getConnectionChecker(mNetworkType, mContext);
+        AbstractCancelableTask prevTask;
         for (int i = 0; i < mCallbackMap.size(); i++) {
             int key = mCallbackMap.keyAt(i);
             switch (key) {
                 case DOWNLOAD:
-                    lastTaskFuture = mExecutor.submit(new DownloadTask(DOWNLOAD_URL, maxDuration, connectionChecker,
-                            mCallbackMap.get(key)).getCallable());
+                    prevTask = new DownloadTask(DOWNLOAD_URL, maxDuration, mMeasuringUnit,
+                            connectionChecker, mCallbackMap.get(key));
+
+                    lastTaskFuture = mExecutor.submit(prevTask.getCallable());
+                    mPrevTasks.add(prevTask);
                     break;
                 case UPLOAD:
-                    lastTaskFuture = mExecutor.submit(new UploadTask(UPLOAD_URL, CHARSET, maxDuration, connectionChecker,
-                            mCallbackMap.get(key)).getCallable());
+                    prevTask = new UploadTask(UPLOAD_URL, CHARSET, maxDuration, mMeasuringUnit,
+                            connectionChecker, mCallbackMap.get(key));
+                    mPrevTasks.add(prevTask);
+                    lastTaskFuture = mExecutor.submit(prevTask.getCallable());
                     break;
             }
         }
-        waitForLastTaskCompleted(maxDuration, last, lastTaskFuture);
+        waitForLastTaskCompleted(mCallbackMap.size() * maxDuration, lastTaskFuture, lastCallback);
+//        mExecutor.shutdown();
         mCallbackMap.clear();
     }
 
-    public void cancelAllTasks(){
-        //TODO
+    public void cancelAllTasks() {
+        for (AbstractCancelableTask cancelableTask : mPrevTasks) {
+            cancelableTask.cancel();
+        }
     }
 
-    private void waitForLastTaskCompleted(long maxDuration, LifeCycleCallback last, Future<Float> lastTaskFuture) {
-        new FutureWaiter(lastTaskFuture, maxDuration * mCallbackMap.size(), last);
+    private void waitForLastTaskCompleted(long maxDuration, Future<Float> lastFuture, LifeCycleCallback lastCallback) {
+        new FutureWaiter(maxDuration * mCallbackMap.size(), lastFuture, lastCallback).start();
     }
 
     public void startRouting() {
-        mExecutor = Executors.newSingleThreadExecutor();
+        if (mExecutor == null || mExecutor.isShutdown() || mExecutor.isTerminated()) {
+            mExecutor = Executors.newSingleThreadExecutor();
+        }
     }
 
     public void finishRouting() {
@@ -116,13 +138,16 @@ public class TestRouter {
         @Constants.NetworkType
         private int mNetworkType;
         private int mDuration;
+        private MeasuringUnits mMeasuringUnit;
         private SparseArray<TaskCallbacks> mCallbackMap;
         private Context mContext;
 
         public Builder(Context context) {
             mContext = context;
-            mCallbackMap = new SparseArray<>(2);
             mNetworkType = Constants.WIFI;
+            mDuration = Constants.DEFAULT_MEASUREMENT_DURATION;
+            mMeasuringUnit = MeasuringUnits.MB_S;
+            mCallbackMap = new SparseArray<>(2);
         }
 
         public Builder setNetworkType(@Constants.NetworkType int networkType) {
@@ -132,6 +157,11 @@ public class TestRouter {
 
         public Builder setDuration(int duration) {
             mDuration = duration;
+            return this;
+        }
+
+        public Builder setMeasuringUnit(MeasuringUnits measuringUnit) {
+            mMeasuringUnit = measuringUnit;
             return this;
         }
 
@@ -146,10 +176,9 @@ public class TestRouter {
         }
 
         public TestRouter create() {
-            return new TestRouter(mNetworkType, mDuration, mCallbackMap, mContext);
+            return new TestRouter(mNetworkType, mDuration, mMeasuringUnit, mCallbackMap, mContext);
         }
 
     }
-
 
 }

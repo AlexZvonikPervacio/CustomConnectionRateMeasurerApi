@@ -6,31 +6,31 @@ import java.util.concurrent.Future;
 
 import pervacio.com.testhandlerthread.callbacks.LifeCycleCallback;
 
-public class FutureWaiter implements Runnable{
+public class FutureWaiter extends Thread {
 
     public static final int INTERVAL = 50;
     public static final int MAX_ATTEMPTS = 20;
 
-    private Future<Float> lastTaskFuture;
-    private long waitTime;
-    private LifeCycleCallback last;
+    private long mWaitTime;
+    private Future<Float> mLastTaskFuture;
+    private LifeCycleCallback mLastCallback;
 
-    public FutureWaiter(Future<Float> lastTaskFuture, long waitTime, LifeCycleCallback last) {
-        this.lastTaskFuture = lastTaskFuture;
-        this.waitTime = waitTime;
-        this.last = last;
+    public FutureWaiter(long waitTime, Future<Float> lastFuture, LifeCycleCallback lastCallback) {
+        mWaitTime = waitTime;
+        mLastTaskFuture = lastFuture;
+        mLastCallback = lastCallback;
     }
 
     @Override
     public void run() {
-        SystemClock.sleep(waitTime);
+        SystemClock.sleep(mWaitTime);
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            if (lastTaskFuture.isDone()) {
-                last.onFinishRouting();
+            if (mLastTaskFuture.isDone()) {
+                mLastCallback.onFinishRouting();
                 return;
             }
             SystemClock.sleep(INTERVAL);
         }
-        last.onHorribleError("HorribleError. Somehow threads didn't stop");
+        mLastCallback.onHorribleError("HorribleError. Somehow threads didn't stop");
     }
 }

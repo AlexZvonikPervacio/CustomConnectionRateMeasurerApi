@@ -9,30 +9,35 @@ import pervacio.com.testhandlerthread.R;
 import pervacio.com.testhandlerthread.TestRouter;
 import pervacio.com.testhandlerthread.callbacks.TaskCallbacks;
 import pervacio.com.testhandlerthread.utils.Constants;
+import pervacio.com.testhandlerthread.utils.MeasuringUnits;
 
 public class MainActivity extends AppCompatActivity implements TaskCallbacks {
 
     private static final String TAG = MainActivity.class.getSimpleName();
 
     private TestRouter mTestRouter;
+    private final MeasuringUnits unit = MeasuringUnits.KB_S;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         mTestRouter = new TestRouter.Builder(this)
                 .setNetworkType(Constants.WIFI)
-                .setDuration(5_000)
+                .setDuration(10_000)
+                .setMeasuringUnit(unit)
                 .setDownload(this)
-//                .setUpload(this)
+                .setUpload(this)
                 .create();
         mTestRouter.startRouting();
+        mTestRouter.start();
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        mTestRouter.addTaskAndStart(Constants.DOWNLOAD, this);
+        mTestRouter.startRouting();
     }
 
     @Override
@@ -42,11 +47,11 @@ public class MainActivity extends AppCompatActivity implements TaskCallbacks {
     }
 
     public void start(View view) {
-        mTestRouter.start();
+        mTestRouter.addTaskAndStart(Constants.UPLOAD, this);
     }
 
     public void stop(View view) {
-
+        mTestRouter.cancelAllTasks();
     }
 
     @Override
@@ -66,7 +71,7 @@ public class MainActivity extends AppCompatActivity implements TaskCallbacks {
 
     @Override
     public void onDownloadFinish(float result) {
-        Log.w(TAG, "[onDownloadFinish] : result = " + result);
+        Log.w(TAG, "[onDownloadFinish] : result = " + result + " " + unit.getLabel());
     }
 
     @Override
@@ -86,7 +91,7 @@ public class MainActivity extends AppCompatActivity implements TaskCallbacks {
 
     @Override
     public void onUploadFinish(float result) {
-        Log.w(TAG, "[onUploadFinish] : result = " + result);
+        Log.w(TAG, "[onUploadFinish] : result = " + result + " " + unit.getLabel());
     }
 
     @Override
@@ -104,6 +109,5 @@ public class MainActivity extends AppCompatActivity implements TaskCallbacks {
         Log.e(TAG, "[onHorribleError] : message = " + message);
         throw new RuntimeException(message);
     }
-
 
 }

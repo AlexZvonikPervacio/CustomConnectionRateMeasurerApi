@@ -21,6 +21,7 @@ import pervacio.com.testhandlerthread.callbacks.TaskCallbacks;
 import pervacio.com.testhandlerthread.callbacks.UploadCallback;
 import pervacio.com.testhandlerthread.utils.Constants;
 import pervacio.com.testhandlerthread.utils.FileUtils;
+import pervacio.com.testhandlerthread.utils.MeasuringUnits;
 import pervacio.com.testhandlerthread.utils.RandomGen;
 
 public class UploadTask extends AbstractCancelableTask {
@@ -47,8 +48,9 @@ public class UploadTask extends AbstractCancelableTask {
      * @param duration
      * @throws IOException
      */
-    public UploadTask(String requestURL, String charset, long duration, IConnectionTypeChecker checker, TaskCallbacks taskCallback) {
-        super(duration, checker, taskCallback);
+    public UploadTask(String requestURL, String charset, long duration, MeasuringUnits measuringUnit,
+                      IConnectionTypeChecker checker, TaskCallbacks taskCallback) {
+        super(duration, measuringUnit, checker);
         this.requestURL = requestURL;
         this.charset = charset;
         mUploadTaskCallback = taskCallback;
@@ -106,7 +108,7 @@ public class UploadTask extends AbstractCancelableTask {
         addHeaderField("Test-Header", "Header-Value");
         List<String> response = new ArrayList<>(0);
         try {
-            addFilePart("fileUpload", FileUtils.getUploadFile());
+            mTotal = addFilePart("fileUpload", FileUtils.getUploadFile());
             response = finish();
             Log.d("UploadTask", "response : " + response);
         } catch (IOException e) {
@@ -130,6 +132,7 @@ public class UploadTask extends AbstractCancelableTask {
                     "multipart/form-data; boundary=" + boundary);
             httpConn.setRequestProperty("User-Agent", "CodeJava Agent");
             httpConn.setRequestProperty("Test", "Bonjour");
+            httpConn.setChunkedStreamingMode(CHUNK_SIZE);
             outputStream = httpConn.getOutputStream();
             writer = new PrintWriter(new OutputStreamWriter(outputStream, charset), true);
         } catch (IOException e) {

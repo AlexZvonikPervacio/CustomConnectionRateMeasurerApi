@@ -11,7 +11,12 @@ public class Constants {
 
     public static final String HOST = "http://2.testdebit.info";
     public static final String DOWNLOAD_FILE_NAME = "100Mo.dat";
+
     public static final String DOWNLOAD_URL = HOST + "/fichiers/" + DOWNLOAD_FILE_NAME;
+    public static final String DOWNLOAD_URL2 = "http://mirror.internode.on.net/pub/speed/SpeedTest_128MB.dat";
+    public static final String DOWNLOAD_URL3 = "http://test.talia.net/dl/50mb.pak";
+    public static final String DOWNLOAD_URL4 = "http://speedo.eltele.no/speedtest/random4000x4000.jpg";
+
     public static final String UPLOAD_URL = HOST + "/";
     public static final int UPLOAD_FILE_SIZE = 100_000_000; //upload 100Mo file size.
     public static final String UPLOAD_FILE_PREF = "100_UL_Mo";
@@ -23,6 +28,7 @@ public class Constants {
 
     public static final int ACTION_START = 8000;
     public static final int ACTION_STOP = 8001;
+    public static final int DEFAULT_MEASUREMENT_DURATION = 10_000;
 
     @IntDef({ACTION_START, ACTION_STOP})
     @Retention(RetentionPolicy.SOURCE)
@@ -47,13 +53,5 @@ public class Constants {
     @Retention(RetentionPolicy.SOURCE)
     public @interface NetworkType {
     }
-
-    enum Status {
-        START,
-        START_DOWNLOAD, START_UPLOAD,
-        STOP_DOWNLOAD, STOP_UPLOAD,
-        STOP
-    }
-
 
 }

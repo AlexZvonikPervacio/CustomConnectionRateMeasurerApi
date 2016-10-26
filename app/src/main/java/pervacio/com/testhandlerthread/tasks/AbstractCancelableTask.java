@@ -11,23 +11,25 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import pervacio.com.testhandlerthread.IConnectionTypeChecker;
-import pervacio.com.testhandlerthread.callbacks.LifeCycleCallback;
+import pervacio.com.testhandlerthread.utils.MeasuringUnits;
 
 public abstract class AbstractCancelableTask {
 
     public static final String TAG = AbstractCancelableTask.class.getSimpleName();
+    public static final int CHUNK_SIZE = 4 * 1024;
 
     private final AtomicBoolean mCancelled = new AtomicBoolean();
 
     private long mDuration;
+    private MeasuringUnits mMeasuringUnit;
     private IConnectionTypeChecker mChecker;
     //TODO get rid of or change architecture
-    private LifeCycleCallback mLifeCycleCallback;
+//    private LifeCycleCallback mLifeCycleCallback;
 
-    public AbstractCancelableTask(long duration, IConnectionTypeChecker checker, LifeCycleCallback lifeCycleCallback) {
+    public AbstractCancelableTask(long duration, MeasuringUnits measuringUnit, IConnectionTypeChecker checker) {
         mDuration = duration;
+        mMeasuringUnit = measuringUnit;
         mChecker = checker;
-        mLifeCycleCallback = lifeCycleCallback;
     }
 
     public final boolean isCancelled() {
@@ -67,19 +69,25 @@ public abstract class AbstractCancelableTask {
     protected float readBytes(InputStream inputStream, OutputStream outputStream) throws TaskException {
 
         long totalBytes = 0;
-        byte[] buffer = new byte[4 * 1024];
+        byte[] buffer = new byte[CHUNK_SIZE];
         long startTime = System.currentTimeMillis();
 
         try {
             int bytesRead;
+            int counter = 0;
             while ((bytesRead = inputStream.read(buffer)) != -1) {
                 if (isCancelled()) {
                     inputStream.close();
-                    return totalBytes;
+                    final float rate = mMeasuringUnit.convertBytes(totalBytes, System.currentTimeMillis() - startTime);
+                    Log.e("readBytes", "rate = " + rate + ", totalBytes = " + totalBytes);
+                    return rate;
                 }
                 totalBytes += bytesRead;
                 outputStream.write(buffer, 0, bytesRead);
-                onProgress(totalBytes);
+                if (counter % 50 == 0) {
+                    onProgress(totalBytes);
+                }
+                counter++;
             }
         } catch (IOException e) {
             Log.e(TAG, e.getMessage());
@@ -96,11 +104,9 @@ public abstract class AbstractCancelableTask {
             } catch (IOException ignored) {
             }
         }
-        final float rate = (totalBytes / 1024 / 1024) /
-                ((System.currentTimeMillis() - startTime) / 1000f);
+        final float rate = mMeasuringUnit.convertBytes(totalBytes, System.currentTimeMillis() - startTime);
         Log.e("readBytes", "rate = " + rate + ", totalBytes = " + totalBytes);
         return rate;
-//        return totalBytes;
     }
 
     protected void initBeforeStart() {
