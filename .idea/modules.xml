@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/TestHandlerThread.iml" filepath="$PROJECT_DIR$/TestHandlerThread.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/custom_connection_measurer/custom_connection_measurer.iml" filepath="$PROJECT_DIR$/custom_connection_measurer/custom_connection_measurer.iml" />
     </modules>
   </component>
 </project>
